@@ -69,13 +69,13 @@
 
 #define DAC_CS                9  // Chip select pin
 
-#define SIGNAL_INPUT_A        A0  // Sensing input for the DAC output
+#define SIGNAL_INPUT_A        A0  // Sensing input for the DAC output (high values)
 
-#define SIGNAL_INPUT_B        A1  // Green wire from the torque sensor, low values
+#define SIGNAL_INPUT_B        A1  // Green wire from the torque sensor (low values)
 
-#define SPOOF_SIGNAL_A        A2  // Sensing input for the DAC output
+#define SPOOF_SIGNAL_A        A2  // Sensing input for the DAC output (high values)
 
-#define SPOOF_SIGNAL_B        A3  // Blue wire from the torque sensor, high values
+#define SPOOF_SIGNAL_B        A3  // Blue wire from the torque sensor (low values)
 
 #define SPOOF_ENGAGE          6   // Signal interrupt (relay) for spoofed torque values
 
@@ -185,8 +185,7 @@ uint16_t PSensL_current,        // Current measured accel sensor values
 
 can_frame_s can_frame;          // CAN message structs
 
-bool controlEnable_req,
-     controlEnabled;
+bool controlEnabled;
 
 int local_override = 0;
          
@@ -286,19 +285,32 @@ void calculatePedalSpoof(float pedalPosition) {
 /* ====================================== */
 
 // A function to parse incoming serial bytes
-void processSerialByte() {
+void processSerialByte( uint8_t incomingSerialByte) 
+{
   
   if (incomingSerialByte == 'a') {                  // accelerate
-    pedalPosition_target += 1000;
+    pedalPosition_target += 10;
   }
   if (incomingSerialByte == 'd') {                  // deaccelerate 
-    pedalPosition_target -= 1000;
+    pedalPosition_target -= 10;
   }
   if (incomingSerialByte == 's') {                  // return to center
     pedalPosition_target = 0;
   }
   if (incomingSerialByte == 'p') {                  // enable/disable control
-    controlEnable_req = !controlEnable_req;
+      if( !controlEnabled ) 
+      {   
+          controlEnabled = true;
+          enableControl();
+      }   
+
+      // disable control from the PolySync interface
+      else if( controlEnabled ) 
+      {   
+          controlEnabled = false;
+          disableControl();
+      }   
+
   }
 }
 
@@ -504,8 +516,9 @@ void loop()
     check_rx_timeouts();
 
     // update state variables
-    PSensL_current = analogRead(SIGNAL_INPUT_A) << 2;  //10 bit to 12 bit
-    PSensH_current = analogRead(SIGNAL_INPUT_B) << 2;
+    PSensH_current = analogRead(SIGNAL_INPUT_A) << 2;  //10 bit to 12 bit
+    PSensL_current = analogRead(SIGNAL_INPUT_B) << 2;
+
     
     // if someone is pressing the throttle pedal disable control
     if ( ( PSensL_current + PSensH_current) / 2 > PEDAL_THRESH ) {
@@ -518,10 +531,11 @@ void loop()
         local_override = 0;
     }
 
-    // read and parse incoming serial commands
-    if (Serial.available() > 0) {
-        incomingSerialByte = Serial.read();
-        processSerialByte();
+    // Read and parse incoming serial commands
+    if ( Serial.available() > 0 ) 
+    {
+        uint8_t incomingSerialByte = Serial.read();
+        processSerialByte( incomingSerialByte );
     }
 
 
@@ -531,16 +545,8 @@ void loop()
 
         calculatePedalSpoof(pedalPosition_target);
 
-        // debug print statements
-        //Serial.print("pedalPosition_target = ");
-        //Serial.print(pedalPosition_target);
-        //Serial.print(" Spoof error, H = ");
-        //Serial.print(PSpoofH - (analogRead(PSENS_HIGH_SPOOF) << 2));
-        //Serial.print(" Spoof error L = ");
-        //Serial.println(PSpoofL - (analogRead(PSENS_LOW_SPOOF) << 2));    
-
-        dac.outputA( PSpoofL );
-        dac.outputB( PSpoofH );
+        dac.outputA( PSpoofH );
+        dac.outputB( PSpoofL );
 
     }
 
