@@ -17,15 +17,6 @@
 /* along with OSCC.  If not, see <http://www.gnu.org/licenses/>.        */
 /************************************************************************/
 
-// Throttle control ECU firmware
-// Firmware for control of 2014 Kia Soul throttle system
-// Component
-//    Arduino Mega
-//    Seeed Studio CAN-BUS Shield, v1.2 (MCP2515)
-//    Sainsmart 4 relay module
-//    6 channel mosfet Board
-// E Livingston, 2016
-
 #include <SPI.h>
 #include <FiniteStateMachine.h>
 #include "mcp_can.h"
